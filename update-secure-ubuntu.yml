@@ -1,0 +1,47 @@
+[200~---        # update-secure-ubuntu.yml
+# Simple playbook used at AGAMal to keep Ubuntu servers patched,
+# enable unattended upgrades, and reboot only when required.
+# Author: Derek Asamoah-Amoyaw  •  License: MIT
+
+- name: Patch & secure Ubuntu servers
+  hosts: ubuntu_servers
+  become: yes
+
+  vars:
+    unattended_reboot_time: "03:30"
+
+  tasks:
+    - name: Update apt cache & upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install unattended-upgrades package
+      apt:
+        name: unattended-upgrades
+        state: present
+
+    - name: Configure automatic security updates
+      lineinfile:
+        path: /etc/apt/apt.conf.d/20auto-upgrades
+        regexp: '^APT::Periodic::Unattended-Upgrade'
+        line: 'APT::Periodic::Unattended-Upgrade "1";'
+      notify: restart unattended‑upgrades
+
+    - name: Reboot if kernel updated
+      reboot:
+        msg: "Reboot triggered by Ansible after kernel upgrade"
+        reboot_timeout: 900
+      when: "'linux-image' in ansible_facts.packages_updated"
+
+  handlers:
+    - name: restart unattended‑upgrades
+      service:
+        name: unattended-upgrades
+        state: restarted
+EOF~
+cat > inventory.ini <<'EOF'
+[ubuntu_servers]
+srv-data-01 ansible_host=10.10.0.5
+srv-web-01 ansible_host=10.10.0.7
